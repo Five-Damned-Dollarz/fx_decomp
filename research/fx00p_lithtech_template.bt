@@ -1,0 +1,109 @@
+struct Header
+{
+	char magic[4];
+	uint version, dll_version; // always 2, 5? maybe version and ClientFX dll version?
+
+	uint strings_length;
+	uint funcs_length; // data size?
+	uint key_count; // key count
+	uint effect_count; // effect count
+	uint dll_GetNum; // count of key types in the dll
+	uint strings_offset; // strings offset
+	uint total_size; // (file - header) size
+
+	/*
+	key counts:
+	 0 = ParticleSystem
+	 1 = Sprite
+	 2 = LTBModel
+	 3 = DynaLight
+	 4 = Sound
+	 5 = CameraShake
+	 6 = Create
+	 7 = CreateRay
+	 8 = FlareSprite
+	 9 = Lightning
+	10 = Tracer
+	11 = LensFlare
+	12 = DebrisSystem
+	13 = VideoController
+	14 = Decal
+	15 = Overlay
+	16 = PolyTrail
+	17 = Rumble
+	// XP
+	18 = Laser
+	// PM
+	19 = ForkedLightning
+	*/
+	uint key_counts[dll_GetNum];
+} header;
+
+char strings_data[header.strings_length] <bgcolor=cLtYellow>;
+
+struct Func {
+	uint key_count;
+	struct {
+		float time;
+		float value; // T value;
+	} keys[key_count];
+};
+
+// this is a block of "functions", there's no way to parse this sequentially
+// you need to get the expected type from the referencing property
+float functions_block[header.funcs_length/4] <bgcolor=cLtGreen>;
+
+string ReadStringIndex(uint idx)
+{
+	char str[256];
+	Memcpy(str, strings_data, 255, 0, idx); // Strncpy doesn't work for some reason
+	return str;
+}
+
+struct Effect {
+	uint name_index <read=ReadStringIndex>;
+
+	uint phase_length; // in ms
+
+	uint key_count;
+
+	struct Keyframe {
+		enum <uint> {
+			ParticleSystem=0,
+			Sprite=1,
+			LtbModel=2,
+			DynaLight=3,
+			Sound=4,
+			CameraShake=5,
+			Create=6,
+			CreateRay=7,
+			FlareSprite=8,
+			Lightning=9,
+			Tracer=10,
+			LensFlare=11,
+			DebrisSystem=12,
+			VideoController=13,
+			Decal=14,
+			Overlay=15,
+			PolyTrail=16,
+			Rumble=17,
+			Laser=18,
+			ForkedLightning=19,
+		} key_type;
+		float start_time; // in seconds
+		float end_time; // in seconds
+		uint e, f; // incrementing per effect key id, often has spaces where deleted keys were?
+		uint property_count;
+	
+		struct KeyProperty {
+			uint name_index <read=ReadStringIndex>;
+			uint next_pos;
+
+			int buf[(next_pos-FTell())/4] <bgcolor=cLtBlue>; // sometimes these are int/float or indices to string or funcs
+
+			FSeek(next_pos);
+		} properties[property_count] <optimize=false>;
+	} keys[key_count] <optimize=false>;
+} effects[header.effect_count] <optimize=false, bgcolor=cLtRed>;
+
+uint name_indices[header.effect_count] <read=ReadStringIndex>;
